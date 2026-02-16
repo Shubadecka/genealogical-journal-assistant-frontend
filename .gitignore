@@ -5,3 +5,4 @@
 dist/
 app/node_modules/
 app/dist/
+docs/api_contract.md
