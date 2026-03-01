@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { LoadingSpinner } from '../components/ui'
-import { getPages } from '../services/api'
+import { Button, LoadingSpinner, Modal } from '../components/ui'
+import { getPages, updatePage } from '../services/api'
 
 function StatusBadge({ status }) {
   const styles =
@@ -27,7 +27,7 @@ function WrittenDateRange({ startDate, endDate }) {
   )
 }
 
-function PageCard({ page }) {
+function PageCard({ page, onEdit }) {
   return (
     <div className="bg-white rounded-lg shadow-sm border overflow-hidden flex flex-col">
       <div className="bg-gray-100 aspect-[3/4] overflow-hidden flex items-center justify-center">
@@ -45,7 +45,18 @@ function PageCard({ page }) {
         {page.notes && (
           <p className="text-xs text-gray-500 line-clamp-2">{page.notes}</p>
         )}
-        <p className="text-xs text-gray-400">Uploaded {page.date}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-gray-400">Uploaded {page.date}</p>
+          <button
+            onClick={() => onEdit(page)}
+            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -57,6 +68,10 @@ export default function PagesPage() {
   const [error, setError] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [editingPage, setEditingPage] = useState(null)
+  const [editStartDate, setEditStartDate] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => {
     async function fetchPages() {
@@ -76,6 +91,30 @@ export default function PagesPage() {
     }
     fetchPages()
   }, [startDate, endDate])
+
+  const handleOpenEdit = (page) => {
+    setEditingPage(page)
+    setEditStartDate(page.page_start_date || '')
+    setSaveError('')
+  }
+
+  const handleSavePage = async () => {
+    setIsSaving(true)
+    setSaveError('')
+
+    try {
+      const data = await updatePage(editingPage.id, {
+        page_start_date: editStartDate || null,
+      })
+      const updated = data.page || data
+      setPages((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)))
+      setEditingPage(null)
+    } catch (err) {
+      setSaveError(err.message || 'Failed to save changes. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -142,10 +181,54 @@ export default function PagesPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {pages.map((page) => (
-            <PageCard key={page.id} page={page} />
+            <PageCard key={page.id} page={page} onEdit={handleOpenEdit} />
           ))}
         </div>
       )}
+
+      <Modal
+        isOpen={!!editingPage}
+        onClose={() => !isSaving && setEditingPage(null)}
+        title="Edit Page"
+      >
+        <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="edit-page-start-date"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Start date
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              The date of the first entry on this page. This is not necessarily the date of every entry — a page may span multiple days.
+            </p>
+            <input
+              id="edit-page-start-date"
+              type="date"
+              value={editStartDate}
+              onChange={(e) => setEditStartDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {saveError && (
+            <div className="bg-red-50 text-red-600 p-3 rounded text-sm">
+              {saveError}
+            </div>
+          )}
+          <div className="flex gap-3">
+            <Button variant="primary" onClick={handleSavePage} isLoading={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setEditingPage(null)}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

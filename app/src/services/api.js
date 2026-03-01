@@ -218,6 +218,20 @@ export async function uploadPage(formData) {
 }
 
 /**
+ * Update a page's start date
+ * @param {number|string} id
+ * @param {object} data - Fields to update
+ * @param {string|null} data.page_start_date - New start date (YYYY-MM-DD), or null to clear
+ * @returns {Promise<{page: object}>}
+ */
+export async function updatePage(id, data) {
+  return request(`/pages/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+/**
  * Delete a page and all its entries
  * @param {number|string} id
  * @returns {Promise<null>}
