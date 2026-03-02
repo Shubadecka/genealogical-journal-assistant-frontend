@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button, LoadingSpinner, Modal } from '../components/ui'
-import { getPages, updatePage } from '../services/api'
+import { getPages, updatePage, processPage } from '../services/api'
 
 function StatusBadge({ status }) {
   const styles =
@@ -27,7 +27,9 @@ function WrittenDateRange({ startDate, endDate }) {
   )
 }
 
-function PageCard({ page, onEdit }) {
+function PageCard({ page, onEdit, onTranscribe, isProcessing }) {
+  const isTranscribed = page.status === 'transcribed'
+
   return (
     <div className="bg-white rounded-lg shadow-sm border overflow-hidden flex flex-col">
       <div className="bg-gray-100 aspect-[3/4] overflow-hidden flex items-center justify-center">
@@ -57,6 +59,39 @@ function PageCard({ page, onEdit }) {
             Edit
           </button>
         </div>
+        <button
+          onClick={() => onTranscribe(page)}
+          disabled={isProcessing}
+          className={`mt-0.5 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+            isTranscribed
+              ? 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200'
+              : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          {isProcessing ? (
+            <>
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Processing…
+            </>
+          ) : isTranscribed ? (
+            <>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Re-transcribe
+            </>
+          ) : (
+            <>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Transcribe
+            </>
+          )}
+        </button>
       </div>
     </div>
   )
@@ -72,6 +107,9 @@ export default function PagesPage() {
   const [editStartDate, setEditStartDate] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [processingPageId, setProcessingPageId] = useState(null)
+  const [confirmReprocessPage, setConfirmReprocessPage] = useState(null)
+  const [processError, setProcessError] = useState('')
 
   useEffect(() => {
     async function fetchPages() {
@@ -91,6 +129,31 @@ export default function PagesPage() {
     }
     fetchPages()
   }, [startDate, endDate])
+
+  const handleTranscribeClick = (page) => {
+    setProcessError('')
+    if (page.status === 'transcribed') {
+      setConfirmReprocessPage(page)
+    } else {
+      runProcessPage(page.id)
+    }
+  }
+
+  const runProcessPage = async (pageId) => {
+    setProcessingPageId(pageId)
+    setConfirmReprocessPage(null)
+    setProcessError('')
+
+    try {
+      const data = await processPage(pageId)
+      const updated = data.page || data
+      setPages((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)))
+    } catch (err) {
+      setProcessError(err.message || 'Failed to process page. Please try again.')
+    } finally {
+      setProcessingPageId(null)
+    }
+  }
 
   const handleOpenEdit = (page) => {
     setEditingPage(page)
@@ -179,12 +242,52 @@ export default function PagesPage() {
             : 'No pages uploaded yet.'}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {pages.map((page) => (
-            <PageCard key={page.id} page={page} onEdit={handleOpenEdit} />
-          ))}
-        </div>
+        <>
+          {processError && (
+            <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{processError}</div>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {pages.map((page) => (
+              <PageCard
+                key={page.id}
+                page={page}
+                onEdit={handleOpenEdit}
+                onTranscribe={handleTranscribeClick}
+                isProcessing={processingPageId === page.id}
+              />
+            ))}
+          </div>
+        </>
       )}
+
+      <Modal
+        isOpen={!!confirmReprocessPage}
+        onClose={() => setConfirmReprocessPage(null)}
+        title="Re-transcribe Page"
+      >
+        <div className="space-y-4">
+          <div className="flex gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <svg className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-sm text-yellow-800">
+              This page has already been transcribed. Re-transcribing will likely create <strong>duplicate entries</strong>. You will need to manually delete any duplicates afterwards.
+            </p>
+          </div>
+          <p className="text-sm text-gray-600">Are you sure you want to continue?</p>
+          <div className="flex gap-3">
+            <Button
+              variant="primary"
+              onClick={() => runProcessPage(confirmReprocessPage.id)}
+            >
+              Yes, re-transcribe
+            </Button>
+            <Button variant="secondary" onClick={() => setConfirmReprocessPage(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={!!editingPage}

@@ -218,6 +218,17 @@ export async function uploadPage(formData) {
 }
 
 /**
+ * Run OCR and transcription processing on a page
+ * @param {number|string} id
+ * @returns {Promise<{page: object, entries: array}>}
+ */
+export async function processPage(id) {
+  return request(`/pages/${id}/process`, {
+    method: 'POST',
+  })
+}
+
+/**
  * Update a page's start date
  * @param {number|string} id
  * @param {object} data - Fields to update
