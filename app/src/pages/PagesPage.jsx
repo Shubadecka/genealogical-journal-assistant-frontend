@@ -119,6 +119,7 @@ export default function PagesPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [sortBy, setSortBy] = useState('date_written')
+  const [sortOrder, setSortOrder] = useState('desc')
   const [filterField, setFilterField] = useState('date_written')
   const [editingPage, setEditingPage] = useState(null)
   const [editStartDate, setEditStartDate] = useState('')
@@ -219,6 +220,14 @@ export default function PagesPage() {
   const filterLabel = filterField === 'date_uploaded' ? 'Upload date' : 'Written date'
   const hasFilters = startDate || endDate
 
+  const sortedPages = [...pages].sort((a, b) => {
+    const dateA = new Date(sortBy === 'date_uploaded' ? a.date : (a.page_start_date || ''))
+    const dateB = new Date(sortBy === 'date_uploaded' ? b.date : (b.page_start_date || ''))
+    if (!a.page_start_date && sortBy !== 'date_uploaded') return 1
+    if (!b.page_start_date && sortBy !== 'date_uploaded') return -1
+    return sortOrder === 'asc' ? dateA - dateB : dateB - dateA
+  })
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
@@ -256,6 +265,29 @@ export default function PagesPage() {
               <option value="date_written">Date Written</option>
               <option value="date_uploaded">Date Uploaded</option>
             </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-600">Order</label>
+            <button
+              onClick={() => setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}
+              className={`${selectClass} flex items-center gap-1.5 cursor-pointer`}
+            >
+              {sortOrder === 'desc' ? (
+                <>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  Newest first
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                  Oldest first
+                </>
+              )}
+            </button>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-600">Filter by</label>
@@ -334,7 +366,7 @@ export default function PagesPage() {
             <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{processError}</div>
           )}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {pages.map((page) => (
+            {sortedPages.map((page) => (
               <PageCard
                 key={page.id}
                 page={page}

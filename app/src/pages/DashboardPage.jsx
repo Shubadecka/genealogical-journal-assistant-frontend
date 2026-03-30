@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [sortBy, setSortBy] = useState('date_written')
+  const [sortOrder, setSortOrder] = useState('desc')
   const [filterField, setFilterField] = useState('date_written')
 
   useEffect(() => {
@@ -85,6 +86,29 @@ export default function DashboardPage() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-600">Order</label>
+            <button
+              onClick={() => setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}
+              className={`${selectClass} flex items-center gap-1.5 cursor-pointer`}
+            >
+              {sortOrder === 'desc' ? (
+                <>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  Newest first
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                  Oldest first
+                </>
+              )}
+            </button>
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-600">Filter by</label>
             <select
               value={filterField}
@@ -141,7 +165,7 @@ export default function DashboardPage() {
       )}
 
       {/* Entry List */}
-      <EntryList entries={entries} sortBy={sortBy} />
+      <EntryList entries={entries} sortBy={sortBy} sortOrder={sortOrder} />
 
       {/* Results count */}
       {entries.length > 0 && (
