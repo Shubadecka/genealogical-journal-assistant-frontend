@@ -98,12 +98,20 @@ export default function UploadPage() {
       }))
 
       const data = await uploadPagesBatch(files, date, metadata)
-      const pages = data.pages ?? []
+      const pageIds = (data.pages ?? []).map((p) => p.id)
 
-      for (const page of pages) {
-        processPage(page.id).catch((err) =>
-          console.error(`Transcribe failed for ${page.id}:`, err)
-        )
+      // Queue sequential transcription so we don't overwhelm the OCR service.
+      // Runs in the background after navigation.
+      if (pageIds.length) {
+        ;(async () => {
+          for (const pid of pageIds) {
+            try {
+              await processPage(pid)
+            } catch (err) {
+              console.error(`Transcribe failed for ${pid}:`, err)
+            }
+          }
+        })()
       }
 
       navigate('/')

@@ -128,8 +128,8 @@ export default function PagesPage() {
 
   const navigate = useNavigate()
   const pollRef = useRef(null)
-  const transcribingRef = useRef(transcribingIds)
-  transcribingRef.current = transcribingIds
+  const queueRef = useRef([])
+  const processingRef = useRef(false)
 
   const fetchParams = useCallback(
     () => ({
@@ -146,6 +146,45 @@ export default function PagesPage() {
     return data.pages ?? []
   }, [fetchParams])
 
+  // Sequential transcription queue — processes one page at a time so we
+  // don't overwhelm the OCR service with concurrent requests.
+  const drainQueue = useCallback(async () => {
+    if (processingRef.current) return
+    processingRef.current = true
+
+    while (queueRef.current.length > 0) {
+      const pageId = queueRef.current.shift()
+      try {
+        const data = await processPage(pageId)
+        const updated = data.page || data
+        setPages((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)))
+      } catch (err) {
+        console.error(`Transcribe failed for ${pageId}:`, err)
+      }
+      setTranscribingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(pageId)
+        return next
+      })
+    }
+
+    processingRef.current = false
+  }, [])
+
+  const enqueueTranscribe = useCallback((pageIds) => {
+    const newIds = pageIds.filter(
+      (id) => !queueRef.current.includes(id)
+    )
+    if (!newIds.length) return
+    queueRef.current.push(...newIds)
+    setTranscribingIds((prev) => {
+      const next = new Set(prev)
+      newIds.forEach((id) => next.add(id))
+      return next
+    })
+    drainQueue()
+  }, [drainQueue])
+
   // Initial load + auto-transcribe pending pages
   useEffect(() => {
     let cancelled = false
@@ -157,13 +196,11 @@ export default function PagesPage() {
         if (cancelled) return
         setPages(fetched)
 
-        const pending = fetched.filter((p) => p.status === 'pending')
-        if (pending.length) {
-          const ids = new Set(pending.map((p) => p.id))
-          setTranscribingIds(ids)
-          for (const p of pending) {
-            fireTranscribe(p.id)
-          }
+        const pendingIds = fetched
+          .filter((p) => p.status === 'pending')
+          .map((p) => p.id)
+        if (pendingIds.length) {
+          enqueueTranscribe(pendingIds)
         }
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load pages')
@@ -173,28 +210,7 @@ export default function PagesPage() {
     }
     load()
     return () => { cancelled = true }
-  }, [doFetch])
-
-  const fireTranscribe = useCallback((pageId) => {
-    processPage(pageId)
-      .then((data) => {
-        const updated = data.page || data
-        setPages((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)))
-        setTranscribingIds((prev) => {
-          const next = new Set(prev)
-          next.delete(pageId)
-          return next
-        })
-      })
-      .catch((err) => {
-        console.error(`Transcribe failed for ${pageId}:`, err)
-        setTranscribingIds((prev) => {
-          const next = new Set(prev)
-          next.delete(pageId)
-          return next
-        })
-      })
-  }, [])
+  }, [doFetch, enqueueTranscribe])
 
   // Conditional polling while pages are pending or transcribing
   useEffect(() => {
@@ -208,16 +224,12 @@ export default function PagesPage() {
           const fetched = await doFetch()
           setPages(fetched)
 
-          const stillPending = fetched.filter(
-            (p) => p.status === 'pending' && !transcribingRef.current.has(p.id)
-          )
-          if (stillPending.length) {
-            setTranscribingIds((prev) => {
-              const next = new Set(prev)
-              stillPending.forEach((p) => next.add(p.id))
-              return next
-            })
-            stillPending.forEach((p) => fireTranscribe(p.id))
+          const newPendingIds = fetched
+            .filter((p) => p.status === 'pending')
+            .map((p) => p.id)
+            .filter((id) => !queueRef.current.includes(id))
+          if (newPendingIds.length) {
+            enqueueTranscribe(newPendingIds)
           }
         } catch {
           // ignore poll errors
@@ -234,22 +246,20 @@ export default function PagesPage() {
         pollRef.current = null
       }
     }
-  }, [pages, transcribingIds, doFetch, fireTranscribe])
+  }, [pages, transcribingIds, doFetch, enqueueTranscribe])
 
   const handleTranscribeClick = (page) => {
     setProcessError('')
     if (page.status === 'transcribed') {
       setConfirmReprocessPage(page)
     } else {
-      setTranscribingIds((prev) => new Set(prev).add(page.id))
-      fireTranscribe(page.id)
+      enqueueTranscribe([page.id])
     }
   }
 
   const runReprocess = (pageId) => {
     setConfirmReprocessPage(null)
-    setTranscribingIds((prev) => new Set(prev).add(pageId))
-    fireTranscribe(pageId)
+    enqueueTranscribe([pageId])
   }
 
   const handleDeletePage = async () => {
