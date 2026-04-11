@@ -40,6 +40,23 @@ npm run build
 npm run preview
 ```
 
+### Docker
+
+**Published frontend image on Docker Hub:** [shubadecka/genealogical-journal-assistant-frontend](https://hub.docker.com/repository/docker/shubadecka/genealogical-journal-assistant-frontend/general) — pull with `docker pull shubadecka/genealogical-journal-assistant-frontend:v1.0.0`.
+
+From `app/`:
+
+- **`docker-compose.yml`** — runs nginx + the published image; proxies `/api` and `/uploads` to your backend (default `host.docker.internal:1442`).
+- **`docker-compose-build.yml`** — builds the image from this directory.
+
+```bash
+cd app
+docker compose pull
+docker compose up -d
+```
+
+Open `http://localhost:1457` (or set `FRONTEND_PORT`). For a full stack with API + DB from the monorepo root, use the parent `journal_app/docker-compose.yml` instead.
+
 ## Routes
 
 | Path | Description |
