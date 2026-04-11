@@ -1,10 +1,12 @@
-# Frontend only — expects the API on the host at port 1442 by default.
-# Run from this directory: docker compose up --build
-# Or point at another host: API_UPSTREAM=api.example.com:443 docker compose up
+# Frontend only — pull image from Docker Hub.
+# Expects API on host port 1442 by default (or set API_UPSTREAM).
+# From this directory:
+#   docker compose pull
+#   docker compose up -d
 
 services:
   web:
-    build: .
+    image: shubadecka/genealogical-journal-assistant-frontend:v1.0.0
     ports:
       - "${FRONTEND_PORT:-1457}:80"
     environment:
