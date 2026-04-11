@@ -1,0 +1,13 @@
+# Frontend only — expects the API on the host at port 1442 by default.
+# Run from this directory: docker compose up --build
+# Or point at another host: API_UPSTREAM=api.example.com:443 docker compose up
+
+services:
+  web:
+    build: .
+    ports:
+      - "${FRONTEND_PORT:-1457}:80"
+    environment:
+      API_UPSTREAM: ${API_UPSTREAM:-host.docker.internal:1442}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
